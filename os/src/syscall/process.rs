@@ -1,9 +1,12 @@
 //! Process management syscalls
+use core::borrow::Borrow;
+
 use crate::{
     config::MAX_SYSCALL_NUM, mm::{translated_byte_buffer, MapPermission}, task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, TASK_MANAGER
-    }, timer::get_time_us
+        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskControlBlock, TaskStatus, TASK_MANAGER 
+    }, timer::{get_time_ms, get_time_us},
 };
+
 
 #[repr(C)]
 #[derive(Debug)]
@@ -60,7 +63,7 @@ fn copy_to_virt<T>(src: &T, dst: *mut T) {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
 
     let now = get_time_us();
@@ -69,16 +72,27 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         usec: now % 1_000_000,
     };
 
-    copy_to_virt(&time_val, _ts);
+    copy_to_virt(&time_val, ts);
     0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
+    trace!("kernel: sys_task_info");
+    let now = get_time_ms();
+    let new = {
+        let task = TASK_MANAGER.current_task();
+        let task: &TaskControlBlock = task.borrow();
+        TaskInfo {
+            status: task.status(),
+            time: now - task.start_time,
+            syscall_times: task.syscall_times,
+        }
+    };
+    copy_to_virt(&new, ti);
+    0
 }
 
 bitflags! {
