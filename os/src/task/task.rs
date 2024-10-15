@@ -6,101 +6,68 @@ use super::TaskContext;
 
 /// The task control block (TCB) of a task.
 #[derive(Copy, Clone)]
-pub enum TaskControlBlock {
-    /// The task is uninitialized
-    UnInit(TaskInfo),
-    /// The task is ready to run
-    Ready(TaskInfo),
-    /// The task is running
-    Running(TaskInfo),
-    /// The task has exited
-    Exited(TaskInfo),
+pub struct TaskControlBlock {
+    /// The status of the task
+    pub status: TaskStatus,
+    /// The task information
+    pub info: TaskInfo,
 }
 
 impl TaskControlBlock {
     /// Turn the task into `TaskControlBlock::Running`
-    pub fn turn_to_running(&mut self) -> Result<(), &'static str> {
-        match self {
-            TaskControlBlock::Ready(info) => {
-                if info.start_time == 0 {
-                    info.start_time = get_time_ms();
-                }
-                *self = TaskControlBlock::Running(*info);
-                Ok(())
-            },
-            _ => Err("TaskControlBlock::turn_to_running: not a Ready task"),
+    pub fn try_turn_to_running(&mut self) -> Result<(), &'static str> {
+        if self.status != TaskStatus::Ready {
+            return Err("TaskControlBlock::turn_to_running: not a Ready task");
         }
+
+        if self.info.start_time == 0 {
+            self.info.start_time = get_time_ms();
+        }
+        Ok(())
     }
 
     /// Turn the task into `TaskControlBlock::Ready`
     pub fn try_turn_to_ready(&mut self) -> Result<(), &'static str> {
-        match self {
-            TaskControlBlock::Running(info) => {
-                *self = TaskControlBlock::Ready(*info);
-                Ok(())
-            },
-            _ => Err("TaskControlBlock::turn_to_ready: not a Running task"),
+        if self.status != TaskStatus::Running {
+            return Err("TaskControlBlock::turn_to_ready: not a Running task");
         }
+
+        self.status = TaskStatus::Ready;
+        Ok(())
     }
 
     /// Turn the task into `TaskControlBlock::Exited`
     pub fn turn_to_exited(&mut self) {
-        if let TaskControlBlock::Running(info)
-            | TaskControlBlock::Ready(info)
-            | TaskControlBlock::UnInit(info) = self {
-            *self = TaskControlBlock::Exited(*info);
-        }
+        self.status = TaskStatus::Exited;
     }
 
     /// Get the task context
     pub fn cx(&self) -> &TaskContext {
-        match self {
-            TaskControlBlock::Ready(info) 
-            | TaskControlBlock::Running(info) 
-            | TaskControlBlock::Exited(info)
-            | TaskControlBlock::UnInit(info) => &info.task_cx,
-        }
+        &self.info.task_cx
     }
 
     /// Check if the task is ready
     pub fn is_ready(&self) -> bool {
-        match self {
-            TaskControlBlock::Ready(_) => true,
-            _ => false,
-        }
+       self.status == TaskStatus::Ready
     }
 
     /// Get the status of the task
     pub fn status(&self) -> TaskStatus {
-        match self {
-            TaskControlBlock::UnInit(_) => TaskStatus::UnInit,
-            TaskControlBlock::Ready(_) => TaskStatus::Ready,
-            TaskControlBlock::Running(_) => TaskStatus::Running,
-            TaskControlBlock::Exited(_) => TaskStatus::Exited,
-        }
+        self.status
     }
 
     /// Get the task information
-    pub fn info(&self) -> Option<&TaskInfo> {
-        match self {
-            TaskControlBlock::Ready(info) | TaskControlBlock::Running(info) => Some(info),
-            _ => None,
-        }
+    pub fn info(&self) -> &TaskInfo {
+        &self.info
     }
 
     /// Increase the syscall times
-    pub fn sys_call_inc(&mut self, syscall_id: usize) -> Option<()> {
-        match self {
-            TaskControlBlock::Ready(info) | TaskControlBlock::Running(info) => {
-                info.sys_call_inc(syscall_id);
-                Some(())
-            },
-            _ => None,
-        }
+    pub fn sys_call_inc(&mut self, syscall_id: usize) {
+        self.info.sys_call_inc(syscall_id);
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct TaskInfo {
     /// The task context
     pub task_cx: TaskContext,
@@ -126,7 +93,7 @@ impl TaskInfo {
 }
 
 /// The status of a task
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum TaskStatus {
     /// The task is uninitialized
     UnInit,

@@ -56,10 +56,13 @@ lazy_static! {
     pub static ref TASK_MANAGER: TaskManager = {
         let num_app = get_num_app();
         let tasks: [_; MAX_APP_NUM] = array::from_fn(|i| {
-            TaskControlBlock::Ready(TaskInfo::new(
-                TaskContext::goto_restore(init_app_cx(i)),
-                0, // start time, will be updated when task first runs
-            ))
+            TaskControlBlock {
+                status: TaskStatus::Ready,
+                info: TaskInfo::new(
+                    TaskContext::goto_restore(init_app_cx(i)),
+                    0, // start time, will be updated when task first runs
+                )
+            }
         });
         TaskManager {
             num_app,
@@ -82,7 +85,7 @@ impl TaskManager {
         let next_task_cx_ptr = {
             let mut inner = self.inner.exclusive_access();
             let task0 = &mut inner.tasks[0];
-            task0.turn_to_running().expect("First task must be ready");
+            task0.try_turn_to_running().expect("First task must be ready");
             
             task0.cx() as *const TaskContext
         };
@@ -133,6 +136,9 @@ impl TaskManager {
         if let Err(msg) = inner.tasks[current].try_turn_to_ready() {
             trace!("Task {} is not running: {}", current, msg);
         };
+        if let Err(msg) = inner.tasks[next].try_turn_to_running() {
+            trace!("Task {} is not ready: {}", next, msg);
+        };
 
         let current_task_cx_ptr = inner.tasks[current].cx() as *const _ as *mut _;
         let next_task_cx_ptr = inner.tasks[next].cx() as *const _ as *mut _;
@@ -147,7 +153,13 @@ impl TaskManager {
 
     pub(crate) fn current_task(&self) -> TaskControlBlock {
         let inner = self.inner.exclusive_access();
-        inner.tasks[inner.current_task].clone()
+        inner.tasks[inner.current_task]
+    }
+
+    pub(crate) fn sys_call_inc(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].sys_call_inc(syscall_id);
     }
 }
 
@@ -156,9 +168,9 @@ pub fn run_first_task() {
     TASK_MANAGER.run_first_task();
 }
 
-/// Get the current `Running` task.
-pub fn current_task() -> TaskControlBlock {
-    TASK_MANAGER.current_task()
+/// Get the current task id.
+pub fn current_task_id() -> usize {
+    TASK_MANAGER.inner.exclusive_access().current_task
 }
 
 /// Switch current `Running` task to the task we have found,

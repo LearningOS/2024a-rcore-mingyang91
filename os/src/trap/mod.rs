@@ -52,7 +52,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             let syscall_id = cx.x[17];
-            TASK_MANAGER.current_task().sys_call_inc(syscall_id);
+            TASK_MANAGER.sys_call_inc(syscall_id);
             // jump to next instruction anyway
             cx.sepc += 4;
             // get system call return value
