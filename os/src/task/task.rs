@@ -23,6 +23,7 @@ impl TaskControlBlock {
         if self.info.start_time == 0 {
             self.info.start_time = get_time_ms();
         }
+        self.status = TaskStatus::Running;
         Ok(())
     }
 
