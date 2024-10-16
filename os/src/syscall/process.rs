@@ -38,22 +38,22 @@ pub fn sys_yield() -> isize {
 }
 
 fn copy_to_virt<T>(src: &T, dst: *mut T) {
-    let src_ptr: *const u8 = unsafe { core::mem::transmute(src) };
+    let src_buf_ptr: *const u8 = unsafe { core::mem::transmute(src) };
     let dst_buf_ptr: *const u8 = unsafe { core::mem::transmute(dst) };
     let len = core::mem::size_of::<T>();
 
-    let targets = translated_byte_buffer(
+    let dst_frames = translated_byte_buffer(
         current_user_token(),
         dst_buf_ptr,
         len
     );
 
     let mut offset = 0;
-    for target in targets {
-        target.copy_from_slice(unsafe {
-            core::slice::from_raw_parts(src_ptr.add(offset), target.len())
+    for dst_frame in dst_frames {
+        dst_frame.copy_from_slice(unsafe {
+            core::slice::from_raw_parts(src_buf_ptr.add(offset), dst_frame.len())
         });
-        offset += target.len();
+        offset += dst_frame.len();
     }
 }
 
