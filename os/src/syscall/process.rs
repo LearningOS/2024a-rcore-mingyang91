@@ -42,7 +42,11 @@ fn copy_to_virt<T>(src: &T, dst: *mut T) {
     let dst_buf_ptr: *const u8 = unsafe { core::mem::transmute(dst) };
     let len = core::mem::size_of::<T>();
 
-    let targets = translated_byte_buffer(current_user_token(), dst_buf_ptr, len);
+    let targets = translated_byte_buffer(
+        current_user_token(),
+        dst_buf_ptr,
+        len
+    );
 
     let mut offset = 0;
     for target in targets {
