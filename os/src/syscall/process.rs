@@ -1,7 +1,7 @@
 //! Process management syscalls
 use crate::{
-    config::MAX_SYSCALL_NUM, mm::translated_byte_buffer, task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
+    config::MAX_SYSCALL_NUM, mm::{translated_byte_buffer, MapPermission}, task::{
+        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, TASK_MANAGER
     }, timer::get_time_us
 };
 
@@ -72,10 +72,46 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     -1
 }
 
+bitflags! {
+    pub struct MmapProt: usize {
+        const PROT_NONE = 0;
+        const PROT_READ = 1;
+        const PROT_WRITE = 2;
+        const PROT_EXEC = 4;
+    }
+}
+
+impl From<MmapProt> for MapPermission {
+    fn from(prot: MmapProt) -> Self {
+        let mut permission = MapPermission::empty();
+        if prot.contains(MmapProt::PROT_READ) {
+            permission |= MapPermission::R;
+        }
+        if prot.contains(MmapProt::PROT_WRITE) {
+            permission |= MapPermission::W;
+        }
+        if prot.contains(MmapProt::PROT_EXEC) {
+            permission |= MapPermission::X;
+        }
+        permission
+    }
+}
+
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    
+    let Some(prot) = MmapProt::from_bits(prot) else {
+        return -1;
+    };
+
+    TASK_MANAGER
+        .mmap(
+            start.into(), 
+            (start + len).into(),
+            prot.into()
+        );
+    1
 }
 
 // YOUR JOB: Implement munmap.
