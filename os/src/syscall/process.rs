@@ -116,18 +116,24 @@ pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
 
     TASK_MANAGER
         .mmap(
-            start.into(), 
+            start.into(),
             (start + len).into(),
             prot.into()
         );
-    1
+    0
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    TASK_MANAGER
+        .unmap(
+            start.into(),
+            (start + len).into(),
+        );
+    0
 }
+
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
     trace!("kernel: sys_sbrk");

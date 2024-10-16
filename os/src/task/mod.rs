@@ -162,6 +162,14 @@ impl TaskManager {
         inner.tasks[cur].memory_set
             .insert_framed_area(start_va, end_va, permission);
     }
+
+    /// Unmap a memory area for current task.
+    pub fn unmap(&self, start_va: VirtAddr, end_va: VirtAddr) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].memory_set
+            .remove_framed_area(start_va, end_va);
+    }
 }
 
 /// Run the first task in task list.
