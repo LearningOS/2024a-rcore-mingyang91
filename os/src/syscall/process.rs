@@ -37,14 +37,27 @@ pub fn sys_yield() -> isize {
     0
 }
 
+fn copy_to_virt<T>(src: &T, dst: *mut T) {
+    let src_ptr: *const u8 = unsafe { core::mem::transmute(src) };
+    let dst_buf_ptr: *const u8 = unsafe { core::mem::transmute(dst) };
+    let len = core::mem::size_of::<T>();
+
+    let targets = translated_byte_buffer(current_user_token(), dst_buf_ptr, len);
+
+    let mut offset = 0;
+    for target in targets {
+        target.copy_from_slice(unsafe {
+            core::slice::from_raw_parts(src_ptr.add(offset), target.len())
+        });
+        offset += target.len();
+    }
+}
+
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    let buf: *const u8 = unsafe { core::mem::transmute(_ts) };
-    let len = core::mem::size_of::<TimeVal>();
-    let targets = translated_byte_buffer(current_user_token(), buf, len);
 
     let now = get_time_us();
     let time_val = TimeVal {
@@ -52,15 +65,7 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         usec: now % 1_000_000,
     };
 
-    let time_val_buf: *const u8 = unsafe { core::mem::transmute(&time_val) };
-
-    let mut offset = 0;
-    for target in targets {
-        target.copy_from_slice(unsafe {
-            core::slice::from_raw_parts(time_val_buf.add(offset), target.len())
-        });
-        offset += target.len();
-    }
+    copy_to_virt(&time_val, _ts);
     0
 }
 
