@@ -113,6 +113,14 @@ pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
         return -1;
     };
 
+    if prot == MmapProt::PROT_NONE {
+        return -1;
+    }
+
+    if start % 4096 != 0 {
+        return -1;
+    }
+
     if let Err(msg) = TASK_MANAGER
         .mmap(
             start.into(),
@@ -129,11 +137,18 @@ pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
 pub fn sys_munmap(start: usize, len: usize) -> isize {
     debug!("kernel: sys_munmap start: {:#x}, len: {:#x}", start, len);
 
-    TASK_MANAGER
+    if start % 4096 != 0 || len % 4096 != 0 {
+        return -1;
+    }
+
+    if let Err(msg) = TASK_MANAGER
         .unmap(
             start.into(),
             (start + len).into(),
-        );
+        ) {
+            info!("kernel: sys_munmap failed: {}", msg);
+            return -1;
+        }
     0
 }
 
