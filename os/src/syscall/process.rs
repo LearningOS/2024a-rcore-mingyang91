@@ -108,24 +108,27 @@ impl From<MmapProt> for MapPermission {
 
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    
+    debug!("kernel: sys_mmap start: {:#x}, len: {:#x}, prot: {:#x}", start, len, prot);
     let Some(prot) = MmapProt::from_bits(prot) else {
         return -1;
     };
 
-    TASK_MANAGER
+    if let Err(msg) = TASK_MANAGER
         .mmap(
             start.into(),
             (start + len).into(),
             prot.into()
-        );
+        ) {
+            info!("kernel: sys_mmap failed: {}", msg);
+            return -1;
+        }
     0
 }
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(start: usize, len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
+    debug!("kernel: sys_munmap start: {:#x}, len: {:#x}", start, len);
+
     TASK_MANAGER
         .unmap(
             start.into(),

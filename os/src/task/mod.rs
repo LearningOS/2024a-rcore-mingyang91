@@ -156,11 +156,23 @@ impl TaskManager {
     }
 
     /// Map a new memory area for current task.
-    pub fn mmap(&self, start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+    pub fn mmap(&self, start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) -> Result<(), &str> {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
-        inner.tasks[cur].memory_set
-            .insert_framed_area(start_va, end_va, permission);
+        let current_memory_set = &mut inner.tasks[cur].memory_set;
+
+        let mut next_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+
+        while next_vpn < end_vpn {
+            if let Some(_) = current_memory_set.translate(next_vpn) {
+                return Err("mmap: area already mapped");
+            }
+            next_vpn.0 += 1;
+        }
+        current_memory_set
+            .insert_framed_area(start_va, end_va, permission | MapPermission::U);
+        Ok(())
     }
 
     /// Unmap a memory area for current task.
