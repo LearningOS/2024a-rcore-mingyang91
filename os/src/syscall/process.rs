@@ -254,14 +254,14 @@ pub fn sys_spawn(path: *const u8) -> isize {
 
     let task_control_block = Arc::new(TaskControlBlock::new(&elf_data));
     add_task(task_control_block.clone());
-    if let Some(current) = current_task() {
-        current.inner_exclusive_access().children.push(task_control_block.clone());
-        let pid = task_control_block.getpid();
-        debug!("kernel: sys_spawn pid: {}, current: {}", pid, current.pid.0);
-        pid as isize  
-    } else {
-        -1
-    }
+    let Some(current) = current_task() else {
+        return -1;
+    };
+
+    current.inner_exclusive_access().children.push(task_control_block.clone());
+    let pid = task_control_block.getpid();
+    debug!("kernel: sys_spawn pid: {}, current: {}", pid, current.pid.0);
+    pid as isize  
 }
 
 // YOUR JOB: Set task priority.
