@@ -1,13 +1,12 @@
 //! Process management syscalls
-use alloc::sync::Arc;
+use alloc::{sync::Arc, task};
 
 use crate::{
     config::MAX_SYSCALL_NUM,
     loader::get_app_data_by_name,
     mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        add_task, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskControlBlock, TaskStatus
     },
 };
 
@@ -72,7 +71,6 @@ pub fn sys_exec(path: *const u8) -> isize {
     let path = translated_str(token, path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         let task = current_task().unwrap();
-        task.exec(data);
         0
     } else {
         -1
@@ -244,12 +242,26 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_spawn(path: *const u8) -> isize {
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    debug!("kernel: sys_spawn user: {}, path: {}", token, path);
+
+    let Some(elf_data) = get_app_data_by_name(path.as_str()) else {
+        debug!("kernel: sys_spawn failed: app [{}] not found", path);
+        return -1;
+    };
+
+    let task_control_block = Arc::new(TaskControlBlock::new(&elf_data));
+    add_task(task_control_block.clone());
+    if let Some(current) = current_task() {
+        current.inner_exclusive_access().children.push(task_control_block.clone());
+        let pid = task_control_block.getpid();
+        debug!("kernel: sys_spawn pid: {}, current: {}", pid, current.pid.0);
+        pid as isize  
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
