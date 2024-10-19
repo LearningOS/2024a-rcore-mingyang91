@@ -258,7 +258,9 @@ pub fn sys_spawn(path: *const u8) -> isize {
         return -1;
     };
 
-    current.inner_exclusive_access().children.push(task_control_block.clone());
+    {
+        current.inner_exclusive_access().children.push(task_control_block.clone());
+    }
     let pid = task_control_block.getpid();
     debug!("kernel: sys_spawn pid: {}, current: {}", pid, current.pid.0);
     pid as isize  
