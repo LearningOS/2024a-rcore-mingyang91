@@ -267,12 +267,17 @@ pub fn sys_spawn(path: *const u8) -> isize {
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_set_priority(prio: isize) -> isize {
+    let current = current_task().expect("sys_set_priority: current_task failed");
+    debug!("kernel:pid[{}] sys_set_priority prio: {}", current.pid.0, prio);
+
+    if prio <= 1 {
+        return -1;
+    }
+
+    let mut inner = current.inner_exclusive_access();
+    inner.priority = prio as usize;
+    prio
 }
 
 fn copy_to_virt<T>(src: &T, dst: *mut T) {

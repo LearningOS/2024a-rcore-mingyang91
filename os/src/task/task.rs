@@ -77,6 +77,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Priority of the process
+    pub priority: usize,
+
+    /// Stride counter
+    pub counter: usize,
 }
 
 impl TaskControlBlockInner {
@@ -129,6 +135,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    priority: 1,
+                    counter: 0,
                 })
             },
         };
@@ -204,6 +212,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    priority: 1,
+                    counter: 0,
                 })
             },
         });
