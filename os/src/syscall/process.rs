@@ -5,7 +5,7 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     fs::{open_file, OpenFlags},
-    mm::{translated_byte_buffer, translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next, TaskStatus,
@@ -153,22 +153,83 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     0
 }
 
+bitflags! {
+    pub struct MmapProt: usize {
+        const PROT_NONE = 0;
+        const PROT_READ = 1;
+        const PROT_WRITE = 2;
+        const PROT_EXEC = 4;
+    }
+}
+
+impl From<MmapProt> for MapPermission {
+    fn from(prot: MmapProt) -> Self {
+        let mut permission = MapPermission::empty();
+        if prot.contains(MmapProt::PROT_READ) {
+            permission |= MapPermission::R;
+        }
+        if prot.contains(MmapProt::PROT_WRITE) {
+            permission |= MapPermission::W;
+        }
+        if prot.contains(MmapProt::PROT_EXEC) {
+            permission |= MapPermission::X;
+        }
+        permission
+    }
+}
+
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
+    trace!("kernel: sys_mmap start: {:#x}, len: {:#x}, prot: {:#x}", start, len, prot);
+    let Some(prot) = MmapProt::from_bits(prot) else {
+        return -1;
+    };
+
+    if prot == MmapProt::PROT_NONE {
+        return -1;
+    }
+
+    if start % 4096 != 0 {
+        return -1;
+    }
+
+    let current = current_task().expect("sys_mmap: current_task failed");
+    let memory_set = &mut current
+        .inner_exclusive_access()
+        .memory_set;
+    if let Err(msg) = memory_set
+        .mmap(
+            start.into(),
+            (start + len).into(),
+            prot.into()
+        ) {
+            info!("kernel: sys_mmap failed: {}", msg);
+            return -1;
+        }
+    0
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    debug!("kernel: sys_munmap start: {:#x}, len: {:#x}", start, len);
+
+    if start % 4096 != 0 || len % 4096 != 0 {
+        return -1;
+    }
+
+    let current = current_task().expect("sys_mmap: current_task failed");
+    let memory_set = &mut current
+        .inner_exclusive_access()
+        .memory_set;
+    if let Err(msg) = memory_set
+        .unmap(
+            start.into(),
+            (start + len).into(),
+        ) {
+            info!("kernel: sys_munmap failed: {}", msg);
+            return -1;
+        }
+    0
 }
 
 /// change data segment size
