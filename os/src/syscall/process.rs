@@ -279,7 +279,7 @@ pub fn sys_set_priority(prio: isize) -> isize {
     prio
 }
 
-fn copy_to_virt<T>(src: &T, dst: *mut T) {
+pub fn copy_to_virt<T>(src: &T, dst: *mut T) {
     let src_buf_ptr: *const u8 = unsafe { core::mem::transmute(src) };
     let dst_buf_ptr: *const u8 = unsafe { core::mem::transmute(dst) };
     let len = core::mem::size_of::<T>();
