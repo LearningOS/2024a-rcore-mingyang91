@@ -1,8 +1,6 @@
 //!Implementation of [`TaskManager`]
 use super::TaskControlBlock;
 use crate::sync::UPSafeCell;
-use alloc::collections::btree_map::BTreeMap;
-use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use lazy_static::*;
 use alloc::collections::BinaryHeap;

@@ -1,13 +1,10 @@
 //! Process management syscalls
-use alloc::{sync::Arc, task};
+use alloc::sync::Arc;
 
 use crate::{
-    config::MAX_SYSCALL_NUM,
-    fs::{open_file, OpenFlags},
-    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission},
-    task::{
+    config::MAX_SYSCALL_NUM, fs::{open_file, OpenFlags}, mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission}, task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskControlBlock, TaskStatus
-    },
+    }
 };
 
 use crate::timer::{get_time_ms, get_time_us};
@@ -34,7 +31,7 @@ pub struct TaskInfo {
 pub fn sys_exit(exit_code: i32) -> ! {
     trace!("kernel:pid[{}] sys_exit", current_task().unwrap().pid.0);
     exit_current_and_run_next(exit_code);
-    panic!("Unreachable in sys_exit!");
+    unreachable!("Unreachable in sys_exit!");
 }
 
 pub fn sys_yield() -> isize {
@@ -64,7 +61,8 @@ pub fn sys_fork() -> isize {
 }
 
 pub fn sys_exec(path: *const u8) -> isize {
-    trace!("kernel:pid[{}] sys_exec", current_task().unwrap().pid.0);
+    let pid = current_task().unwrap().pid.0;
+    trace!("kernel:pid[{}] sys_exec", pid);
     let token = current_user_token();
     let path = translated_str(token, path);
     if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
@@ -245,26 +243,26 @@ pub fn sys_sbrk(size: i32) -> isize {
 pub fn sys_spawn(path: *const u8) -> isize {
     let token = current_user_token();
     let path = translated_str(token, path);
-    debug!("kernel: sys_spawn user: {}, path: {}", token, path);
-    let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) else {
-        return -1;
-    };
-    println!("kernel: sys_spawn app inode: {:p}", Arc::as_ptr(&app_inode));
-    let all_data = app_inode.read_all();
-    println!("kernel: sys_spawn app size: {}", all_data.len());
 
-    let task_control_block = Arc::new(TaskControlBlock::new(all_data.as_slice()));
-    add_task(task_control_block.clone());
     let Some(current) = current_task() else {
         return -1;
     };
+    debug!("kernel: sys_spawn {} -> {}", current.getpid(), path);
 
-    {
-        current.inner_exclusive_access().children.push(task_control_block.clone());
-    }
-    let pid = task_control_block.getpid();
-    debug!("kernel: sys_spawn pid: {}, current: {}", pid, current.pid.0);
-    pid as isize  
+    let new_task = current.fork();
+    let all_data = {
+        let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) else {
+            return -1;
+        };
+        app_inode.read_all()
+    };
+    debug!("kernel: sys_spawn app size: {}", all_data.len());
+
+    let pid = new_task.getpid();
+    new_task.exec(all_data.as_slice());
+    add_task(new_task);
+    info!("kernel: sys_spawn pid: {}, parent: {}", pid, current.pid.0);
+    pid as isize
 }
 
 // YOUR JOB: Set task priority.
