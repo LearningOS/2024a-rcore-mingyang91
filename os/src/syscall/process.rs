@@ -249,9 +249,11 @@ pub fn sys_spawn(path: *const u8) -> isize {
     let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) else {
         return -1;
     };
+    println!("kernel: sys_spawn app inode: {:p}", Arc::as_ptr(&app_inode));
     let all_data = app_inode.read_all();
+    println!("kernel: sys_spawn app size: {}", all_data.len());
 
-    let task_control_block = Arc::new(TaskControlBlock::new(&all_data));
+    let task_control_block = Arc::new(TaskControlBlock::new(all_data.as_slice()));
     add_task(task_control_block.clone());
     let Some(current) = current_task() else {
         return -1;
