@@ -129,6 +129,11 @@ pub fn link_file(old_name: &str, new_name: &str) -> bool {
     ROOT_INODE.link_file(old_name, new_name)
 }
 
+/// Unlink a file
+pub fn unlink_file(name: &str) -> bool {
+    ROOT_INODE.unlink(name)
+}
+
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable
