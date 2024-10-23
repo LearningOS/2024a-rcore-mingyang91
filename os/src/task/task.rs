@@ -39,6 +39,15 @@ impl TaskControlBlock {
         let inner = self.inner_exclusive_access();
         inner.memory_set.token()
     }
+
+    /// Get file by fd
+    pub fn get_file_by_fd(&self, fd: usize) -> Option<Arc<dyn File + Send + Sync>> {
+        let inner = self.inner_exclusive_access();
+        if fd >= inner.fd_table.len() {
+            return None;
+        }
+        inner.fd_table[fd].clone()
+    }
 }
 
 pub struct TaskControlBlockInner {

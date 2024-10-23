@@ -8,17 +8,12 @@ pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     trace!("kernel:pid[{}] sys_write", current_task().unwrap().pid.0);
     let token = current_user_token();
     let task = current_task().unwrap();
-    let inner = task.inner_exclusive_access();
-    if fd >= inner.fd_table.len() {
-        return -1;
-    }
-    if let Some(file) = &inner.fd_table[fd] {
+
+    if let Some(file) = task.get_file_by_fd(fd){
         if !file.writable() {
             return -1;
         }
-        let file = file.clone();
         // release current task TCB manually to avoid multi-borrow
-        drop(inner);
         file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
     } else {
         -1
