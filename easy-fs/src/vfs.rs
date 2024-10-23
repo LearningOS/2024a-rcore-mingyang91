@@ -185,7 +185,7 @@ impl Inode {
         let Some(exist) = self.find(name) else {
             return false
         };
-        let mut fs = self.fs.lock();
+        let fs = self.fs.lock();
         let nlink = self.modify_disk_inode(|root_inode| {
             // assert it is a directory
             assert!(root_inode.is_dir());
