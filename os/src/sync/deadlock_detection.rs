@@ -89,4 +89,49 @@ impl <R: Eq + Copy> Banker<R> {
         self.allocated[task_id][resource_id] += amount;
         true
     }
+
+    pub fn release(&mut self, task_id: usize, resource: R, amount: usize) -> bool {
+        if task_id >= self.num_tasks {
+            return false;
+        }
+
+        let Some(resource_id) = self.resource_id(resource) else {
+            return false;
+        };
+
+        if amount > self.allocated[task_id][resource_id] {
+            return false;
+        }
+
+        self.allocated[task_id][resource_id] -= amount;
+        true
+    }
+
+    pub fn is_safe(&self, task_id: usize) -> bool {
+        let mut work = self.available.clone();
+        let mut finish = alloc::vec![false; self.num_tasks];
+
+        for i in 0..self.num_tasks {
+            if finish[i] {
+                continue;
+            }
+
+            let mut can_finish = true;
+            for j in 0..self.resources.len() {
+                if self.max[i][j] - self.allocated[i][j] > work[j] {
+                    can_finish = false;
+                    break;
+                }
+            }
+
+            if can_finish {
+                for j in 0..self.resources.len() {
+                    work[j] += self.allocated[i][j];
+                }
+                finish[i] = true;
+            }
+        }
+
+        finish[task_id]
+    }
 }
