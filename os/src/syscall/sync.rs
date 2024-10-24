@@ -99,9 +99,9 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
 pub fn sys_semaphore_create(res_count: usize) -> isize {
     let pid = get_pid();
     let tid = get_tid();
-    trace!(
-        "kernel:pid[{}] tid[{}] sys_semaphore_create",
-        pid, tid
+    debug!(
+        "kernel:pid[{}] tid[{}] sys_semaphore_create({})",
+        pid, tid, res_count
     );
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
@@ -128,11 +128,10 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
 pub fn sys_semaphore_up(sem_id: usize) -> isize {
     let pid = get_pid();
     let tid = get_tid();
-    trace!(
+    debug!(
         "kernel:pid[{}] tid[{}] sys_semaphore_up",
         pid, tid
     );
-    info!("semaphore {} up", sem_id);
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
@@ -145,7 +144,7 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
 pub fn sys_semaphore_down(sem_id: usize) -> isize {
     let pid = get_pid();
     let tid = get_tid();
-    trace!(
+    debug!(
         "kernel:pid[{}] tid[{}] sys_semaphore_down",
         pid, tid
     );
@@ -159,15 +158,15 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         }
     };
     if let Some(sem) = try_down {
-        info!("semaphore {} down pass", sem_id);
         sem.down();
-        info!("semaphore {} down success", sem_id);
+        info!("semaphore {} down", sem_id);
         {
             current_process().inner_exclusive_access().request_semaphore(tid, sem_id, 1);
         }
         return 0;
     } else {
-        info!("semaphore {} deadlock detected", sem_id);
+        info!("semaphore {} deadlock", sem_id);
+        debug!("???{} -> {:?}", tid, current_process().inner_exclusive_access().banker);
         return -0xdead;
     }
 }

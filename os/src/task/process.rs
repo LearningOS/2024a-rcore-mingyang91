@@ -108,7 +108,7 @@ impl ProcessControlBlockInner {
             return
         };
 
-        assert_eq!(banker.add_task(), thread_id);
+        banker.update_task(thread_id);
     }
 
     pub fn new_mutex(&mut self, mutex_id: usize) {

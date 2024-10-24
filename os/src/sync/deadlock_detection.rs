@@ -31,16 +31,16 @@ impl <R: Eq + Copy + Display> Banker<R> {
     }
 
     /// Add a task to the allocated list
-    pub fn update_task(&mut self, num_tasks: usize) -> usize {
-        if num_tasks <= self.num_tasks {
+    pub fn update_task(&mut self, task_id: usize) -> usize {
+        if task_id < self.num_tasks {
             return self.num_tasks;
         }
-        for _ in self.num_tasks..num_tasks {
+        for _ in self.num_tasks..=task_id {
             self.max.push(alloc::vec![0; self.resources.len()]);
             self.allocated.push(alloc::vec![0; self.resources.len()]);
             self.need.push(alloc::vec![0; self.resources.len()]);
         }
-        self.num_tasks = num_tasks;
+        self.num_tasks = task_id + 1;
         self.num_tasks
     }
 
@@ -109,7 +109,6 @@ impl <R: Eq + Copy + Display> Banker<R> {
         self.available[resource_id] += amount;
         self.allocated[task_id][resource_id] -= amount;
         self.max[task_id][resource_id] -= amount;
-        self.need[task_id][resource_id] -= amount;
     }
 
     /// Allocate a resource to a task
@@ -187,5 +186,6 @@ impl <R: Eq + Copy + Display> Banker<R> {
 
         self.allocated[task_id][resource_id] += amount;
         self.available[resource_id] -= amount;
+        self.need[task_id][resource_id] -= amount;
     }
 }
