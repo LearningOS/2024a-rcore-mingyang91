@@ -14,7 +14,7 @@ fn get_tid() -> usize {
 }
 /// sleep syscall
 pub fn sys_sleep(ms: usize) -> isize {
-    trace!(
+    debug!(
         "kernel:pid[{}] tid[{}] sys_sleep",
         get_pid(), get_tid()
     );
@@ -65,7 +65,6 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     let mut process_inner = process.inner_exclusive_access();
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     let try_lock = process_inner.try_lock_mutex(tid, mutex_id);
-    debug!("kernel: sys_mutex_lock: {:?}", process_inner.banker);
     drop(process_inner);
     drop(process);
     if try_lock {
@@ -75,6 +74,7 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
         }
         return 0;
     } else {
+        info!("mutex {} deadlock detected", mutex_id);
         return -0xdead;
     }
 }
@@ -132,10 +132,12 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
         "kernel:pid[{}] tid[{}] sys_semaphore_up",
         pid, tid
     );
+    info!("semaphore {} up", sem_id);
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
-    process_inner.release_semaphore(tid, sem_id, 1);
+    info!("semaphore {} up", sem_id);
+    process_inner.release_semaphore(sem_id, 1);
     sem.up();
     0
 }
@@ -148,17 +150,24 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         pid, tid
     );
     let process = current_process();
-    let mut process_inner = process.inner_exclusive_access();
-    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
-    let try_down = process_inner.try_request_semaphore(tid, sem_id, 1);
-    drop(process_inner);
-    if try_down {
+    let try_down = {
+        let mut process_inner = process.inner_exclusive_access();
+        if process_inner.try_request_semaphore(tid, sem_id, 1) {
+            process_inner.semaphore_list[sem_id].as_ref().cloned()
+        } else {
+            None
+        }
+    };
+    if let Some(sem) = try_down {
+        info!("semaphore {} down pass", sem_id);
         sem.down();
+        info!("semaphore {} down success", sem_id);
         {
-            current_process().inner_exclusive_access().release_semaphore(tid, sem_id, 1);
+            current_process().inner_exclusive_access().request_semaphore(tid, sem_id, 1);
         }
         return 0;
     } else {
+        info!("semaphore {} deadlock detected", sem_id);
         return -0xdead;
     }
 }

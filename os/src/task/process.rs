@@ -151,12 +151,12 @@ impl ProcessControlBlockInner {
         banker.request(thread_id, Resource::Mutex(mutex_id), 1)
     }
 
-    pub fn unlock_mutex(&mut self, thread_id: usize, mutex_id: usize) -> bool {
+    pub fn unlock_mutex(&mut self, thread_id: usize, mutex_id: usize) {
         let Some(banker) = self.banker.as_mut() else {
-            return true
+            return
         };
 
-        banker.release(thread_id, Resource::Mutex(mutex_id), 1)
+        banker.release_holding(thread_id, Resource::Mutex(mutex_id), 1);
     }
 
     pub fn try_request_semaphore(&mut self, thread_id: usize, semaphore_id: usize, amount: usize) -> bool {
@@ -175,12 +175,12 @@ impl ProcessControlBlockInner {
         banker.request(thread_id, Resource::Semaphore(semaphore_id), amount)
     }
 
-    pub fn release_semaphore(&mut self, thread_id: usize, semaphore_id: usize, amount: usize) -> bool {
+    pub fn release_semaphore(&mut self, semaphore_id: usize, amount: usize) {
         let Some(banker) = self.banker.as_mut() else {
-            return true
+            return
         };
 
-        banker.release(thread_id, Resource::Semaphore(semaphore_id), amount)
+        banker.release_new(Resource::Semaphore(semaphore_id), amount)
     }
 }
 

@@ -31,11 +31,16 @@ impl <R: Eq + Copy + Display> Banker<R> {
     }
 
     /// Add a task to the allocated list
-    pub fn add_task(&mut self) -> usize {
-        self.num_tasks += 1;
-        self.max.push(alloc::vec![0; self.resources.len()]);
-        self.allocated.push(alloc::vec![0; self.resources.len()]);
-        self.need.push(alloc::vec![0; self.resources.len()]);
+    pub fn update_task(&mut self, num_tasks: usize) -> usize {
+        if num_tasks <= self.num_tasks {
+            return self.num_tasks;
+        }
+        for _ in self.num_tasks..num_tasks {
+            self.max.push(alloc::vec![0; self.resources.len()]);
+            self.allocated.push(alloc::vec![0; self.resources.len()]);
+            self.need.push(alloc::vec![0; self.resources.len()]);
+        }
+        self.num_tasks = num_tasks;
         self.num_tasks
     }
 
@@ -84,22 +89,27 @@ impl <R: Eq + Copy + Display> Banker<R> {
         self.resources.iter().position(|res| res == &Some(resource))
     }
 
-    /// Allocate a resource to a task
-    pub fn release(&mut self, task_id: usize, resource: R, amount: usize) -> bool {
-        if task_id >= self.num_tasks {
-            return false;
-        }
-
+    /// Release new resource from a task
+    pub fn release_new(&mut self, resource: R, amount: usize) {
         let Some(resource_id) = self.resource_id(resource) else {
-            return false;
+            panic!("resource {} not found", resource);
         };
 
-        if amount > self.allocated[task_id][resource_id] {
-            return false;
-        }
+        self.available[resource_id] += amount;
+    }
 
+    /// Release a holding resource from a task
+    pub fn release_holding(&mut self, task_id: usize, resource: R, amount: usize) {
+        assert!(task_id < self.num_tasks, "task_id out of range");
+
+        let Some(resource_id) = self.resource_id(resource) else {
+            panic!("resource {} not found", resource);
+        };
+
+        self.available[resource_id] += amount;
         self.allocated[task_id][resource_id] -= amount;
-        true
+        self.max[task_id][resource_id] -= amount;
+        self.need[task_id][resource_id] -= amount;
     }
 
     /// Allocate a resource to a task
@@ -156,11 +166,13 @@ impl <R: Eq + Copy + Display> Banker<R> {
 
         self.max[task_id][resource_id] += amount;
         self.need[task_id][resource_id] += amount;
-        let is_safe = self.is_safe();
-
-        self.max[task_id][resource_id] -= amount;
-        self.need[task_id][resource_id] -= amount;
-        is_safe
+        if self.is_safe() {
+            true
+        } else {
+            self.max[task_id][resource_id] -= amount;
+            self.need[task_id][resource_id] -= amount;
+            false
+        }
     }
 
     /// Allocate a resource to a task
@@ -173,8 +185,6 @@ impl <R: Eq + Copy + Display> Banker<R> {
 
         assert!(amount <= self.available[resource_id], "amount exceeds available");
 
-        self.max[task_id][resource_id] += amount;
-        self.need[task_id][resource_id] += amount;
         self.allocated[task_id][resource_id] += amount;
         self.available[resource_id] -= amount;
     }
