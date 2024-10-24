@@ -142,6 +142,8 @@ impl <R: Eq + Copy + Display> Banker<R> {
             }
 
             if !found {
+                debug!("???, {:?}", work);
+                debug!("???, {:?}", finish);
                 return false;
             }
         }
@@ -151,17 +153,11 @@ impl <R: Eq + Copy + Display> Banker<R> {
 
     /// Allocate a resource to a task
     pub fn try_request(&mut self, task_id: usize, resource: R, amount: usize) -> bool {
-        if task_id >= self.num_tasks {
-            return false;
-        }
+        assert!(task_id < self.num_tasks, "task_id out of range");
 
         let Some(resource_id) = self.resource_id(resource) else {
-            return false;
+            panic!("resource not found");
         };
-
-        if amount > self.available[resource_id] {
-            return false;
-        }
 
         self.max[task_id][resource_id] += amount;
         self.need[task_id][resource_id] += amount;
