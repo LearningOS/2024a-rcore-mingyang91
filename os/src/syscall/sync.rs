@@ -64,14 +64,18 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
-    let try_lock = process_inner.lock_mutex(tid, mutex_id);
+    let try_lock = process_inner.try_lock_mutex(tid, mutex_id);
+    debug!("kernel: sys_mutex_lock: {:?}", process_inner.banker);
     drop(process_inner);
     drop(process);
     if try_lock {
         mutex.lock();
+        {
+            current_process().inner_exclusive_access().lock_mutex(tid, mutex_id);
+        }
         return 0;
     } else {
-        return -1
+        return -0xdead;
     }
 }
 /// mutex unlock syscall
@@ -146,13 +150,16 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
-    let try_down = process_inner.request_semaphore(tid, sem_id, 1);
+    let try_down = process_inner.try_request_semaphore(tid, sem_id, 1);
     drop(process_inner);
     if try_down {
         sem.down();
+        {
+            current_process().inner_exclusive_access().release_semaphore(tid, sem_id, 1);
+        }
         return 0;
     } else {
-        return -1
+        return -0xdead;
     }
 }
 /// condvar create syscall

@@ -14,6 +14,7 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use core::fmt::{self, Display, Formatter};
 
 /// Process Control Block
 pub struct ProcessControlBlock {
@@ -28,6 +29,16 @@ pub enum Resource {
     Mutex(usize),
     Semaphore(usize),
     Condvar(usize),
+}
+
+impl Display for Resource {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Resource::Mutex(id) => write!(f, "Mutex({})", id),
+            Resource::Semaphore(id) => write!(f, "Semaphore({})", id),
+            Resource::Condvar(id) => write!(f, "Condvar({})", id),
+        }
+    }
 }
 
 /// Inner of Process Control Block
@@ -124,9 +135,17 @@ impl ProcessControlBlockInner {
         banker.add_resource(Resource::Condvar(condvar_id), 1);
     }
 
-    pub fn lock_mutex(&mut self, thread_id: usize, mutex_id: usize) -> bool {
+    pub fn try_lock_mutex(&mut self, thread_id: usize, mutex_id: usize) -> bool {
         let Some(banker) = self.banker.as_mut() else {
             return true
+        };
+
+        banker.try_request(thread_id, Resource::Mutex(mutex_id), 1)
+    }
+
+    pub fn lock_mutex(&mut self, thread_id: usize, mutex_id: usize) {
+        let Some(banker) = self.banker.as_mut() else {
+            return
         };
 
         banker.request(thread_id, Resource::Mutex(mutex_id), 1)
@@ -140,9 +159,17 @@ impl ProcessControlBlockInner {
         banker.release(thread_id, Resource::Mutex(mutex_id), 1)
     }
 
-    pub fn request_semaphore(&mut self, thread_id: usize, semaphore_id: usize, amount: usize) -> bool {
+    pub fn try_request_semaphore(&mut self, thread_id: usize, semaphore_id: usize, amount: usize) -> bool {
         let Some(banker) = self.banker.as_mut() else {
             return true
+        };
+
+        banker.try_request(thread_id, Resource::Semaphore(semaphore_id), amount)
+    }
+
+    pub fn request_semaphore(&mut self, thread_id: usize, semaphore_id: usize, amount: usize) {
+        let Some(banker) = self.banker.as_mut() else {
+            return
         };
 
         banker.request(thread_id, Resource::Semaphore(semaphore_id), amount)

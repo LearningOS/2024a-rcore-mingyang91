@@ -1,3 +1,5 @@
+use core::fmt::Display;
+
 use alloc::{collections::vec_deque::VecDeque, vec::Vec};
 
 /// Deadlock detection
@@ -14,17 +16,17 @@ pub struct Banker<R> {
     need: Vec<Vec<usize>>,
 }
 
-impl <R: Eq + Copy> Banker<R> {
+impl <R: Eq + Copy + Display> Banker<R> {
     /// Create a new DeadlockDetection
     pub fn new() -> Self {
         Self {
             resources: Vec::new(),
             recycle: VecDeque::new(),
-            num_tasks: 0,
-            max: Vec::new(),
-            allocated: Vec::new(),
+            num_tasks: 1,
+            max: alloc::vec![Vec::new()],
+            allocated: alloc::vec![Vec::new()],
             available: Vec::new(),
-            need: Vec::new(),
+            need: alloc::vec![Vec::new()],
         }
     }
 
@@ -105,7 +107,6 @@ impl <R: Eq + Copy> Banker<R> {
         let mut work = self.available.clone();
         let mut finish = alloc::vec![false; self.num_tasks];
         let mut count = 0;
-
         while count < self.num_tasks {
             let mut found = false;
             for task_id in 0..self.num_tasks {
@@ -140,7 +141,7 @@ impl <R: Eq + Copy> Banker<R> {
     }
 
     /// Allocate a resource to a task
-    pub fn request(&mut self, task_id: usize, resource: R, amount: usize) -> bool {
+    pub fn try_request(&mut self, task_id: usize, resource: R, amount: usize) -> bool {
         if task_id >= self.num_tasks {
             return false;
         }
@@ -149,24 +150,32 @@ impl <R: Eq + Copy> Banker<R> {
             return false;
         };
 
-        if self.allocated[task_id][resource_id] + amount > self.max[task_id][resource_id] {
-            return false;
-        }
-
         if amount > self.available[resource_id] {
             return false;
         }
 
-        self.allocated[task_id][resource_id] += amount;
+        self.max[task_id][resource_id] += amount;
         self.need[task_id][resource_id] += amount;
-        self.available[resource_id] -= amount;
-        if self.is_safe() {
-            return true;
-        }
+        let is_safe = self.is_safe();
 
-        self.allocated[task_id][resource_id] -= amount;
+        self.max[task_id][resource_id] -= amount;
         self.need[task_id][resource_id] -= amount;
-        self.available[resource_id] += amount;
-        false
+        is_safe
+    }
+
+    /// Allocate a resource to a task
+    pub fn request(&mut self, task_id: usize, resource: R, amount: usize) {
+        assert!(task_id < self.num_tasks, "task_id out of range");
+
+        let Some(resource_id) = self.resource_id(resource) else {
+            panic!("resource not found");
+        };
+
+        assert!(amount <= self.available[resource_id], "amount exceeds available");
+
+        self.max[task_id][resource_id] += amount;
+        self.need[task_id][resource_id] += amount;
+        self.allocated[task_id][resource_id] += amount;
+        self.available[resource_id] -= amount;
     }
 }
