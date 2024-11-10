@@ -5,7 +5,7 @@ use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 
-use crate::config::{TRAP_CONTEXT_BASE, MAX_SYSCALL_NUM};
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 
 use crate::timer::get_time_ms;
 use crate::trap::{trap_handler, TrapContext};
@@ -205,6 +205,13 @@ impl TaskControlBlock {
         // **** release current PCB
     }
 
+    /// Spawn a new process
+    pub fn spawn(&self, elf_data: &[u8]) -> Arc<Self> {
+        let tcb = Arc::new(TaskControlBlock::new(elf_data));
+        self.inner_exclusive_access().children.push(tcb.clone());
+        tcb
+    }
+
     /// parent process fork the child process
     pub fn fork(self: &Arc<TaskControlBlock>) -> Arc<TaskControlBlock> {
         // ---- hold parent PCB lock
@@ -304,7 +311,6 @@ impl TaskControlBlock {
         self.inner.exclusive_access().syscall_times[syscall_id] += 1;
     }
 }
-
 
 /// task status: UnInit, Ready, Running, Exited
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

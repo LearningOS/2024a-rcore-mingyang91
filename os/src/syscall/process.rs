@@ -2,13 +2,16 @@
 use alloc::sync::Arc;
 
 use crate::{
-    config::MAX_SYSCALL_NUM, fs::{open_file, OpenFlags}, mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission}, task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskControlBlock, TaskStatus
-    }
+    config::MAX_SYSCALL_NUM,
+    fs::{open_file, OpenFlags},
+    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission},
+    task::{
+        add_task, current_task, current_user_token, exit_current_and_run_next,
+        suspend_current_and_run_next, TaskControlBlock, TaskStatus,
+    },
 };
 
 use crate::timer::{get_time_ms, get_time_us};
-
 
 #[repr(C)]
 #[derive(Debug)]
@@ -136,8 +139,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info");
     let now = get_time_ms();
     let new = {
-        let task = current_task()
-            .expect("sys_task_info: current_task failed");
+        let task = current_task().expect("sys_task_info: current_task failed");
         let inner = task.inner_exclusive_access();
         TaskInfo {
             status: task.status(),
@@ -176,7 +178,12 @@ impl From<MmapProt> for MapPermission {
 
 /// YOUR JOB: Implement mmap.
 pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
-    trace!("kernel: sys_mmap start: {:#x}, len: {:#x}, prot: {:#x}", start, len, prot);
+    trace!(
+        "kernel: sys_mmap start: {:#x}, len: {:#x}, prot: {:#x}",
+        start,
+        len,
+        prot
+    );
     let Some(prot) = MmapProt::from_bits(prot) else {
         return -1;
     };
@@ -190,18 +197,11 @@ pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
     }
 
     let current = current_task().expect("sys_mmap: current_task failed");
-    let memory_set = &mut current
-        .inner_exclusive_access()
-        .memory_set;
-    if let Err(msg) = memory_set
-        .mmap(
-            start.into(),
-            (start + len).into(),
-            prot.into()
-        ) {
-            info!("kernel: sys_mmap failed: {}", msg);
-            return -1;
-        }
+    let memory_set = &mut current.inner_exclusive_access().memory_set;
+    if let Err(msg) = memory_set.mmap(start.into(), (start + len).into(), prot.into()) {
+        info!("kernel: sys_mmap failed: {}", msg);
+        return -1;
+    }
     0
 }
 
@@ -214,17 +214,11 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     }
 
     let current = current_task().expect("sys_mmap: current_task failed");
-    let memory_set = &mut current
-        .inner_exclusive_access()
-        .memory_set;
-    if let Err(msg) = memory_set
-        .unmap(
-            start.into(),
-            (start + len).into(),
-        ) {
-            info!("kernel: sys_munmap failed: {}", msg);
-            return -1;
-        }
+    let memory_set = &mut current.inner_exclusive_access().memory_set;
+    if let Err(msg) = memory_set.unmap(start.into(), (start + len).into()) {
+        info!("kernel: sys_munmap failed: {}", msg);
+        return -1;
+    }
     0
 }
 
@@ -249,7 +243,6 @@ pub fn sys_spawn(path: *const u8) -> isize {
     };
     debug!("kernel: sys_spawn {} -> {}", current.getpid(), path);
 
-    let new_task = current.fork();
     let all_data = {
         let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) else {
             return -1;
@@ -258,8 +251,8 @@ pub fn sys_spawn(path: *const u8) -> isize {
     };
     debug!("kernel: sys_spawn app size: {}", all_data.len());
 
+    let new_task = current.spawn(&all_data);
     let pid = new_task.getpid();
-    new_task.exec(all_data.as_slice());
     add_task(new_task);
     info!("kernel: sys_spawn pid: {}, parent: {}", pid, current.pid.0);
     pid as isize
@@ -268,7 +261,10 @@ pub fn sys_spawn(path: *const u8) -> isize {
 // YOUR JOB: Set task priority.
 pub fn sys_set_priority(prio: isize) -> isize {
     let current = current_task().expect("sys_set_priority: current_task failed");
-    debug!("kernel:pid[{}] sys_set_priority prio: {}", current.pid.0, prio);
+    debug!(
+        "kernel:pid[{}] sys_set_priority prio: {}",
+        current.pid.0, prio
+    );
 
     if prio <= 1 {
         return -1;
@@ -284,11 +280,7 @@ pub fn copy_to_virt<T>(src: &T, dst: *mut T) {
     let dst_buf_ptr: *const u8 = unsafe { core::mem::transmute(dst) };
     let len = core::mem::size_of::<T>();
 
-    let dst_frames = translated_byte_buffer(
-        current_user_token(),
-        dst_buf_ptr,
-        len
-    );
+    let dst_frames = translated_byte_buffer(current_user_token(), dst_buf_ptr, len);
 
     let mut offset = 0;
     for dst_frame in dst_frames {
